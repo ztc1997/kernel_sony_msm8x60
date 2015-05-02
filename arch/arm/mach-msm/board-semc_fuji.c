@@ -166,6 +166,10 @@
 #include <mach/pm8058-mic_bias.h>
 #endif
 
+#ifdef CONFIG_KEXEC_HARDBOOT
+#include <linux/memblock.h>
+#endif
+
 #define MSM_SHARED_RAM_PHYS 0x40000000
 #define BMA250_GPIO			(41)
 #define AKM897X_GPIO		31
@@ -4864,6 +4868,11 @@ static void reserve_debug_memory(void)
 
 static void __init msm8x60_reserve(void)
 {
+#ifdef CONFIG_KEXEC_HARDBOOT
+        int ret;
+        phys_addr_t start;
+	struct membank* bank;
+#endif
 	msm8x60_set_display_params(prim_panel_name, ext_panel_name);
 	reserve_info = &msm8x60_reserve_info;
 	msm_reserve();
@@ -4871,6 +4880,23 @@ static void __init msm8x60_reserve(void)
 //adding by rick
 #if defined(CONFIG_ANDROID_RAM_CONSOLE) || defined(CONFIG_RAMDUMP_TAGS)
 	reserve_debug_memory();
+#endif
+#ifdef CONFIG_KEXEC_HARDBOOT
+        // Reserve space for hardboot page - just after ram_console,
+        // at the start of second memory bank
+
+        if (meminfo.nr_banks < 2) {
+                pr_err("%s: not enough membank\n", __func__);
+                return;
+        }
+
+	bank = &meminfo.bank[1];
+	start = KEXEC_HB_PAGE_ADDR;
+	ret = memblock_remove(start, SZ_1M);
+        if(!ret)
+                pr_info("Hardboot page reserved at 0x%X\n", start);
+        else
+                pr_err("Failed to reserve space for hardboot page at 0x%X!\n", start);
 #endif
 /*
 	if (msm8960_fmem_pdata.size) {
